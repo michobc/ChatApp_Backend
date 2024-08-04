@@ -8,6 +8,7 @@ public class ChatHub : Hub
 {
     private readonly ChatServiceImpl _chatService;
     private static readonly Dictionary<string, string> UserConnections = new();
+    private static readonly Dictionary<string, List<Message>> UnreadMessages = new();
     
     public ChatHub(ChatServiceImpl chatService)
     {
@@ -18,6 +19,12 @@ public class ChatHub : Hub
     {
         var connectionId = Context.ConnectionId;
         UserConnections[userId] = connectionId;
+        
+        // Clear unread messages when user reconnects
+        if (UnreadMessages.ContainsKey(userId))
+        {
+            UnreadMessages[userId].Clear();
+        }
     }
 
     public async Task Disconnect(string userId)
@@ -47,7 +54,18 @@ public class ChatHub : Hub
 
         if (UserConnections.TryGetValue(receiverId, out var connectionId))
         {
+            _chatService.SendMessage(chatMessage, null);
             await Clients.Client(connectionId).SendAsync("ReceiveMessage", chatMessage);
+
+            // Add to unread messages
+            if (!UnreadMessages.ContainsKey(receiverId))
+            {
+                UnreadMessages[receiverId] = new List<Message>();
+            }
+            UnreadMessages[receiverId].Add(chatMessage);
+
+            // Optionally notify the receiver about new messages
+            await Clients.Client(connectionId).SendAsync("ReceiveNotification", UnreadMessages[receiverId].Count);
         }
         else
         {
@@ -66,6 +84,19 @@ public class ChatHub : Hub
         };
 
         await Clients.Group(groupName: groupName).SendAsync("ReceiveMessage", chatMessage);
+    }
+    
+    public async Task MarkMessagesAsRead(string userId)
+    {
+        if (UnreadMessages.ContainsKey(userId))
+        {
+            UnreadMessages[userId].Clear();
+            // Notify client that unread count is cleared
+            if (UserConnections.TryGetValue(userId, out var connectionId))
+            {
+                await Clients.Client(connectionId).SendAsync("ReceiveNotification", 0);
+            }
+        }
     }
 
 }
