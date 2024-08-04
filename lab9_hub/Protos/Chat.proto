@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+service ChatService {
+  rpc SendMessage (Message) returns (Empty);
+  rpc GetMessages (ChatHistoryRequest) returns (ChatHistoryResponse);
+}
+
+message Message {
+  string SenderId = 1;
+  string ReceiverId = 2;
+  string Text = 3;
+  string Timestamp = 4;
+}
+
+message ChatHistoryRequest {
+  string SenderId = 1;
+  string ReceiverId = 2;
+}
+
+message ChatHistoryResponse {
+  repeated Message Messages = 1;
+}
+
+message Empty {}
